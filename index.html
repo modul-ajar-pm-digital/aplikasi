@@ -39,7 +39,7 @@ const CFG=Object.assign({URL:'',KEY:''},JSON.parse(localStorage.getItem('cfg')||
 const sb=(CFG.URL&&window.supabase)?supabase.createClient(CFG.URL,CFG.KEY):null;
 const $=id=>document.getElementById(id);
 const esc=s=>String(s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-const nl=s=>esc(s).replace(/\n/g,'<br>');
+const nl=s=>gam(esc(s).replace(/\n/g,'<br>'));
 let D=JSON.parse(localStorage.getItem('modul')||'null')||{id:null,v:{mapel:'PJOK',fase:'Fase A / Kelas I',jenjang:'SD',sekolah:'SD Negeri 1 Dauhwaru',tahun:'2026/2027'},p:[{}]};
 let step=0;
 const F={
@@ -71,7 +71,14 @@ function bukuUI(){
  <div id="bkInfo" class="m">${info}</div>
  <div class="row"><div style="flex:1"><label>Dari halaman</label><input id="h1" type="number" min="1" value="${HA}" ${TXTBUF!=null?'disabled':''}></div><div style="flex:1"><label>Sampai halaman</label><input id="h2" type="number" min="1" value="${HZ}" ${TXTBUF!=null?'disabled':''}></div></div>
  <div class="row"><button class="g" onclick="ekstrak(this)">📥 Ekstrak teks</button></div></div>
- <div class="card">${ada}</div>`}
+ <div class="card">${ada}</div>
+ <div class="card"><b>🖼 Gambar dari Buku</b>
+ <p class="m">Tampilkan halaman buku, seret untuk memilih bagian gambar (tanpa memilih = seluruh halaman), beri keterangan, lalu tambahkan. Saat Generate, AI menyisipkan gambar ke Materi Ajar, LKPD, atau kegiatan yang sesuai. Gambar yang tidak terpakai masuk ke "Galeri Gambar" di lampiran. Maksimal 15 gambar. Hanya untuk PDF.</p>
+ <div class="row"><input id="hg" type="number" min="1" value="${HA}" style="width:110px"><button class="g" onclick="lihatHal()">Tampilkan halaman</button><button class="s" onclick="stepHal(-1)">◀</button><button class="s" onclick="stepHal(1)">▶</button></div>
+ <div id="pvBox"></div>
+ <label>Keterangan gambar</label><input id="kp" placeholder="mis. Anak melempar bola dengan dua tangan">
+ <div class="row"><button onclick="tambahGbr()">➕ Tambahkan ke modul</button></div>
+ <div id="gal">${galeriHtml()}</div></div>`}
 async function pilihBuku(f){
  if(!f)return;const info=$('bkInfo');
  try{
@@ -102,6 +109,40 @@ function ekstrak(b){run(b,async()=>{
  REF={nama:PDFNAMA,teks:t.trim(),hal,on:true};saveRef();render();
 })}
 function hapusRef(){if(confirm('Hapus buku referensi?')){REF={nama:'',teks:'',hal:'',on:true};saveRef();render()}}
+// ===== Gambar dari buku =====
+let IMG=[];try{IMG=JSON.parse(localStorage.getItem('img')||'[]')}catch(e){}
+let PV={n:0,sel:null},USED=new Set();
+function saveImg(){try{localStorage.setItem('img',JSON.stringify(IMG))}catch(e){alert('Memori browser penuh. Hapus beberapa gambar.')}}
+const fig=(n,g)=>{const dw=Math.min(g.w,420),dh=Math.round(g.h*dw/g.w);return `<span style="display:block;text-align:center;margin:6px 0"><img src="${g.s}" data-n="${n}" width="${dw}" height="${dh}"><br><i style="font-size:12px">Gambar ${n}. ${esc(g.c)} (Sumber: ${esc((REF.nama||'buku pelajaran').replace(/\.pdf$/i,''))}, hal. ${g.hal})</i></span>`};
+const gam=h=>h.replace(/\[GAMBAR\s*(\d+)\]/gi,(m,n)=>{const g=IMG[n-1];if(!g)return '';USED.add(+n);return fig(n,g)});
+function imgTxt(){return IMG.length?`\nGAMBAR TERSEDIA dari buku. Sisipkan penanda persis seperti tertulis, contoh [GAMBAR 2], pada baris tersendiri di dalam isian yang sesuai (misalnya Materi Ajar, LKPD, atau kegiatan pembelajaran), hanya bila relevan dengan isi isian itu dan jangan dipakai lebih dari sekali. Rujuk gambar di teks, misalnya "perhatikan Gambar 2":\n${IMG.map((g,i)=>`[GAMBAR ${i+1}] = hal. ${g.hal}; keterangan: ${g.c}`).join('\n')}\n`:''}
+function galeriHtml(){return IMG.length?IMG.map((g,i)=>`<div class="row" style="align-items:flex-start"><img src="${g.s}" style="width:110px;border:1px solid var(--b);border-radius:6px"><div style="flex:1;min-width:180px"><b>[GAMBAR ${i+1}]</b> <span class="m">hal. ${g.hal}</span><input value="${esc(g.c).replace(/"/g,'&quot;')}" oninput="IMG[${i}].c=this.value;saveImg()"><button class="s" style="margin-top:6px" onclick="hapusGbr(${i})">Hapus</button></div></div>`).join(''):'<p class="m">Belum ada gambar dipilih.</p>'}
+function galeri(){const e=$('gal');if(e)e.innerHTML=galeriHtml()}
+function hapusGbr(i){if(confirm('Hapus gambar ini? Nomor gambar setelahnya akan bergeser, jadi periksa lagi penanda [GAMBAR n] di teks.')){IMG.splice(i,1);saveImg();galeri()}}
+function stepHal(d){const e=$('hg');e.value=Math.max(1,(+e.value||1)+d);lihatHal()}
+async function lihatHal(){
+ try{
+  if(!PDFDOC)throw Error('Pilih file PDF buku dulu di bagian atas (file TXT tidak berisi gambar).');
+  const n=Math.min(PDFDOC.numPages,Math.max(1,+$('hg').value||1));$('hg').value=n;
+  const box=$('pvBox');box.innerHTML='<p class="m">Memuat halaman...</p>';
+  const pg=await PDFDOC.getPage(n),v0=pg.getViewport({scale:1}),vp=pg.getViewport({scale:1100/v0.width});
+  box.innerHTML=`<div id="pvW" style="position:relative;touch-action:none;user-select:none"><canvas id="pvC" style="width:100%;height:auto;display:block;border:1px solid var(--b)"></canvas><div id="pvS" style="position:absolute;border:2px dashed #7c3aed;background:#7c3aed33;display:none;pointer-events:none"></div></div>`;
+  const c=$('pvC');c.width=vp.width;c.height=vp.height;
+  await pg.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;
+  PV={n,sel:null};const W=$('pvW');let st=null;
+  W.onpointerdown=e=>{const r=c.getBoundingClientRect();st={x:e.clientX-r.left,y:e.clientY-r.top};W.setPointerCapture(e.pointerId)};
+  W.onpointermove=e=>{if(!st)return;const r=c.getBoundingClientRect(),x=Math.max(0,Math.min(r.width,e.clientX-r.left)),y=Math.max(0,Math.min(r.height,e.clientY-r.top)),L=Math.min(st.x,x),T=Math.min(st.y,y),w=Math.abs(x-st.x),h=Math.abs(y-st.y);Object.assign($('pvS').style,{display:'block',left:L+'px',top:T+'px',width:w+'px',height:h+'px'});PV.sel={L,T,W:w,H:h,rw:r.width}};
+  W.onpointerup=()=>{st=null};
+ }catch(e){alert(e.message)}}
+function tambahGbr(){
+ const c=$('pvC');if(!c)return alert('Tampilkan halaman buku dulu.');
+ if(IMG.length>=15)return alert('Maksimal 15 gambar agar memori browser cukup.');
+ let sx=0,sy=0,sw=c.width,sh=c.height;const s=PV.sel;
+ if(s&&s.W>10&&s.H>10){const k=c.width/s.rw;sx=s.L*k;sy=s.T*k;sw=s.W*k;sh=s.H*k}
+ const sc=Math.min(1,700/sw),o=document.createElement('canvas');o.width=Math.round(sw*sc);o.height=Math.round(sh*sc);
+ const x=o.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,o.width,o.height);x.drawImage(c,sx,sy,sw,sh,0,0,o.width,o.height);
+ IMG.push({s:o.toDataURL('image/jpeg',0.8),w:o.width,h:o.height,c:$('kp').value.trim()||'Ilustrasi dari buku',hal:PV.n});
+ saveImg();$('kp').value='';PV.sel=null;$('pvS').style.display='none';galeri()}
 function setv(p,val){const a=p.split('.');let o=D;for(let i=0;i<a.length-1;i++)o=o[a[i]];o[a.at(-1)]=val;save()}
 function fld(path,[k,l,ty],val){const id=path+'.'+k;return `<label>${esc(l)}</label>`+(ty=='t'?`<textarea oninput="setv('${id}',this.value)">${esc(val[k])}</textarea>`:`<input value="${esc(val[k])}" oninput="setv('${id}',this.value)">`)}
 function render(){
@@ -119,7 +160,7 @@ function npert(n){while(D.p.length<n)D.p.push({});D.p.length=n;save();render()}
 async function token(){if(!sb)throw Error('Isi CFG.URL dan CFG.KEY di index.html terlebih dahulu.');const{data}=await sb.auth.getSession();if(!data.session){authD.showModal();throw Error('Silakan masuk dulu untuk memakai AI.')}return data.session.access_token}
 function ctx(){const v=D.v;return `Identitas modul: ${['sekolah','tahun','jenjang','mapel','fase','bab','subbab','waktu'].map(k=>k+'='+(v[k]||'-')).join('; ')}.\nKesiapan murid: ${v.kesiapan||'-'}\nKarakteristik materi: ${v.karakteristik||'-'}\nCP: ${v.cp||'-'}\nTujuan: ${v.tujuan||'-'}\nTopik: ${v.topik||'-'}\nModel: ${v.model||'-'}; Metode: ${v.metode||'-'}`}
 async function ai(fields,extra){
- const prompt=`Anda ahli kurikulum Indonesia (Kurikulum Merdeka, Pembelajaran Mendalam: Berkesadaran, Bermakna, Menggembirakan; tahapan Memahami-Mengaplikasikan-Merefleksi). Susun isi modul ajar yang praktis, kontekstual untuk murid SD, berbahasa Indonesia baku.\n${ctx()}\n${refTxt()}${extra||''}\nKembalikan HANYA objek JSON valid tanpa markdown, dengan kunci dan isi berikut (semua nilai string, gunakan \\n untuk baris baru):\n`+fields.map(f=>`"${f[0]}": ${f[1]}`).join('\n');
+ const prompt=`Anda ahli kurikulum Indonesia (Kurikulum Merdeka, Pembelajaran Mendalam: Berkesadaran, Bermakna, Menggembirakan; tahapan Memahami-Mengaplikasikan-Merefleksi). Susun isi modul ajar yang praktis, kontekstual untuk murid SD, berbahasa Indonesia baku.\n${ctx()}\n${refTxt()}${imgTxt()}${extra||''}\nKembalikan HANYA objek JSON valid tanpa markdown, dengan kunci dan isi berikut (semua nilai string, gunakan \\n untuk baris baru):\n`+fields.map(f=>`"${f[0]}": ${f[1]}`).join('\n');
  const r=await fetch(CFG.URL+'/functions/v1/generate-modul',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+await token(),apikey:CFG.KEY},body:JSON.stringify({prompt}),signal:AbortSignal.timeout(150000)});
  const j=await r.json();if(j.error||!j.text)throw Error(j.error||'AI tidak merespons');
  const m=j.text.match(/\{[\s\S]*\}/);return JSON.parse(m[0])}
@@ -129,7 +170,7 @@ function genS(k,b){run(b,async()=>{const r=await ai(F[k].f.map(f=>[f[0],f[1]]));
 function genP(i,b){return run(b,async()=>{const r=await ai(PF.map(f=>[f[0],f[1]]),`Ini pertemuan ke-${i+1} dari ${D.p.length} pertemuan. Pastikan alur antar pertemuan berkesinambungan.`);for(const f of PF)if(r[f[0]]!=null)D.p[i][f[0]]=String(r[f[0]]);save();render()})}
 async function genAll(){for(let i=0;i<D.p.length;i++){const b=document.querySelectorAll('.card .g')[i+1];await genP(i,b||document.createElement('b'))}}
 const tr=(a,b)=>`<tr><td width="30%"><b>${a}</b></td><td>${nl(b)}</td></tr>`;
-function doc(){const v=D.v;let h=`<div style="text-align:center"><h2>MODUL AJAR<br>PEMBELAJARAN MENDALAM<br>${esc(v.mapel)}</h2><p>Disusun Oleh:<br><b>${esc(v.penyusun)}</b><br>${esc(v.fase)}<br><br><b>${esc(v.sekolah)}</b><br>TAHUN AJARAN ${esc(v.tahun)}</p></div><br>
+function doc(){USED=new Set();const v=D.v;let h=`<div style="text-align:center"><h2>MODUL AJAR<br>PEMBELAJARAN MENDALAM<br>${esc(v.mapel)}</h2><p>Disusun Oleh:<br><b>${esc(v.penyusun)}</b><br>${esc(v.fase)}<br><br><b>${esc(v.sekolah)}</b><br>TAHUN AJARAN ${esc(v.tahun)}</p></div><br>
 <h3>IDENTITAS</h3><table>${[['Penyusun','penyusun'],['Sekolah','sekolah'],['Tahun Penyusunan','tahun'],['Jenjang Sekolah','jenjang'],['Mata Pelajaran','mapel'],['Fase / Kelas / Semester','fase'],['Bab','bab'],['Sub Bab','subbab'],['Alokasi Waktu','waktu']].map(a=>tr(a[0],v[a[1]])).join('')}</table>
 <h3>IDENTIFIKASI MURID</h3><table>${tr('Kesiapan Murid',v.kesiapan)+tr('Karakteristik Materi Pelajaran',v.karakteristik)+tr('Dimensi Profil Lulusan',v.dimensi)}</table>
 <h3>DESAIN PEMBELAJARAN</h3><table>${tr('Capaian Pembelajaran (CP)',v.cp)+tr('Lintas Disiplin Ilmu',v.lintas)+tr('Tujuan Pembelajaran',v.tujuan)+tr('Topik Pembelajaran',v.topik)+tr('Praktik Pedagogis',`Model: ${v.model||''}\nPendekatan: Pembelajaran Mendalam (Berkesadaran, Bermakna, Menggembirakan)\nMetode: ${v.metode||''}`)+tr('Kemitraan Pembelajaran',v.kemitraan)+tr('Lingkungan Pembelajaran',`Ruang fisik: ${v.rfisik||''}\nRuang virtual: ${v.rvirtual||''}\nBudaya belajar: ${v.budaya||''}`)+tr('Pemanfaatan Digital',v.digital)}</table><h3>PENGALAMAN BELAJAR</h3>`;
@@ -138,8 +179,18 @@ function doc(){const v=D.v;let h=`<div style="text-align:center"><h2>MODUL AJAR<
  h+=`<h3>ASESMEN PEMBELAJARAN</h3><table>${tr('Asesmen Awal (Diagnostik)',v.diagnostik)+tr('Asesmen Formatif',v.formatif)+tr('Asesmen Sumatif',v.sumatif)}</table><h3>TINDAK LANJUT</h3><table>${tr('Remedial',v.remedial)+tr('Pengayaan',v.pengayaan)}</table><h3>PENUTUP</h3><p>${nl(v.penutup)}</p>
  <table style="border:0"><tr><td style="border:0">Mengetahui,<br>Kepala Sekolah<br><br><br><br><b><u>${esc(v.kepsek)}</u></b><br>NIP. ${esc(v.nipk)}</td><td style="border:0">${esc(v.tempat)}<br>Guru/Mata Pelajaran<br><br><br><br><b><u>${esc(v.guru)}</u></b><br>NIP. ${esc(v.nipg)}</td></tr></table>
  <h3>LAMPIRAN</h3><h4>A. Rubrik Asesmen</h4><table><tr><th>Aspek yang Dinilai</th><th>Sangat Baik (4)</th><th>Baik (3)</th><th>Cukup (2)</th><th>Perlu Bimbingan (1)</th></tr>${(v.rubrik||'').split('\n').filter(x=>x.includes('|')).map(r=>'<tr>'+r.split('|').map(c=>`<td>${esc(c.trim())}</td>`).join('')+'</tr>').join('')}</table>
- <h4>B. Lembar Kerja Murid (LKPD)</h4><p>Nama: ........................ Kelas: ........</p><p>${nl(v.lkpd)}</p><h4>C. Materi Ajar</h4><p>${nl(v.materi)}</p><h4>D. Glosarium</h4><p>${nl(v.glosarium)}</p><h4>E. Daftar Pustaka</h4><p>${nl(v.pustaka)}</p>`;return h}
-function dl(){const b=new Blob(['<html><head><meta charset="utf-8"><style>table{border-collapse:collapse;width:100%}td,th{border:1px solid #000;padding:4px;vertical-align:top}</style></head><body>'+doc()+'</body></html>'],{type:'application/msword'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`Modul-Ajar-${D.v.mapel||'PJOK'}.doc`;a.click()}
+ <h4>B. Lembar Kerja Murid (LKPD)</h4><p>Nama: ........................ Kelas: ........</p><p>${nl(v.lkpd)}</p><h4>C. Materi Ajar</h4><p>${nl(v.materi)}</p><h4>D. Glosarium</h4><p>${nl(v.glosarium)}</p><h4>E. Daftar Pustaka</h4><p>${nl(v.pustaka)}</p>`;
+ const sisa=IMG.map((g,i)=>[i+1,g]).filter(a=>!USED.has(a[0]));if(sisa.length)h+='<h4>F. Galeri Gambar</h4>'+sisa.map(a=>fig(a[0],a[1])).join('');
+ return h}
+function dl(){
+ // Format MHTML: gambar ikut tertanam di dalam file .doc (dibuka oleh Microsoft Word)
+ const ns=new Set(),base='file:///C:/modul/';
+ const html=doc().replace(/<img src="data:[^"]+" data-n="(\d+)"/g,(m,n)=>{ns.add(n);return `<img src="${base}gambar${n}.jpg" data-n="${n}"`});
+ const B='----=_ModulAjar_'+Date.now();
+ let m=`MIME-Version: 1.0\r\nContent-Type: multipart/related; boundary="${B}"; type="text/html"\r\n\r\n--${B}\r\nContent-Type: text/html; charset="utf-8"\r\nContent-Transfer-Encoding: 8bit\r\nContent-Location: ${base}modul.htm\r\n\r\n<html><head><meta charset="utf-8"><style>table{border-collapse:collapse;width:100%}td,th{border:1px solid #000;padding:4px;vertical-align:top}</style></head><body>${html}</body></html>\r\n`;
+ ns.forEach(n=>{m+=`--${B}\r\nContent-Type: image/jpeg\r\nContent-Transfer-Encoding: base64\r\nContent-Location: ${base}gambar${n}.jpg\r\n\r\n${IMG[n-1].s.split(',')[1].replace(/.{76}/g,'$&\r\n')}\r\n`});
+ m+=`--${B}--`;
+ const b=new Blob([m],{type:'application/msword'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`Modul-Ajar-${D.v.mapel||'PJOK'}.doc`;a.click()}
 function baru(){if(confirm('Mulai modul baru? Data yang belum disimpan akan hilang.')){D={id:null,v:{mapel:'PJOK',fase:'Fase A / Kelas I',jenjang:'SD',sekolah:D.v.sekolah,tahun:D.v.tahun,penyusun:D.v.penyusun},p:[{}]};save();step=0;render()}}
 async function auth(m){try{if(!sb)throw Error('Supabase belum dikonfigurasi (CFG).');const c={email:$('em').value,password:$('pw').value};const{error}=m=='in'?await sb.auth.signInWithPassword(c):await sb.auth.signUp(c);if(error)throw error;$('am').textContent=m=='in'?'Berhasil masuk.':'Terdaftar. Cek email untuk konfirmasi, lalu masuk.';if(m=='in'){authD.close();$('bA').textContent='✔ Akun'}}catch(e){$('am').textContent=e.message}}
 async function simpan(){try{await token();const{data:{user}}=await sb.auth.getUser();const row={user_id:user.id,title:`${D.v.mapel||''} ${D.v.bab||''} ${D.v.subbab||''}`.trim()||'Modul tanpa judul',data:D};if(D.id)row.id=D.id;const{data,error}=await sb.from('modul').upsert(row).select().single();if(error)throw error;D.id=data.id;save();alert('Tersimpan di cloud ✔')}catch(e){alert(e.message)}}
