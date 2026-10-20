@@ -19,6 +19,7 @@ textarea{min-height:90px;resize:vertical}.row{display:flex;gap:8px;flex-wrap:wra
 .m{color:var(--m);font-size:13px}dialog{border:1px solid var(--b);border-radius:12px;background:var(--c);color:var(--t);max-width:420px;width:92%}
 #prev{background:#fff;color:#000;padding:20px;border-radius:8px;overflow-x:auto}#prev table{border-collapse:collapse;width:100%;margin:8px 0}#prev td,#prev th{border:1px solid #000;padding:5px;vertical-align:top}
 .ld{opacity:.5;pointer-events:none}
+.th{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}.th figure{margin:0;text-align:center;font-size:11px;color:var(--m)}.th img{height:80px;border:1px solid var(--b);border-radius:6px}
 @media print{header,nav,.np{display:none!important}body{background:#fff}#prev{padding:0}}
 </style></head><body>
 <header><h1>📘 Generator Modul Ajar Pembelajaran Mendalam</h1>
@@ -128,6 +129,9 @@ const gam=h=>h.replace(/\[GAMBAR\s*(\d+)\]/gi,(m,n)=>{const g=IMG[n-1];if(!g)ret
 function imgTxt(){return IMG.length?`\nGAMBAR TERSEDIA dari buku. Sisipkan penanda persis seperti tertulis, contoh [GAMBAR 2], pada baris tersendiri di dalam isian yang sesuai (misalnya Materi Ajar, LKPD, atau kegiatan pembelajaran), gunakan sebanyak mungkin gambar yang relevan dengan isi isian itu (jangan memakai gambar yang sama dua kali dalam satu isian). Rujuk gambar di teks, misalnya "perhatikan Gambar 2":\n${IMG.map((g,i)=>`[GAMBAR ${i+1}] = hal. ${g.hal}; keterangan: ${g.c}`).join('\n')}\n`:''}
 function galeriHtml(){return IMG.length?IMG.map((g,i)=>`<div class="row" style="align-items:flex-start"><img src="${g.s}" style="width:110px;border:1px solid var(--b);border-radius:6px"><div style="flex:1;min-width:180px"><b>[GAMBAR ${i+1}]</b> <span class="m">hal. ${g.hal}</span><input value="${esc(g.c).replace(/"/g,'&quot;')}" oninput="IMG[${i}].c=this.value;saveImg()"><button class="s" style="margin-top:6px" onclick="hapusGbr(${i})">Hapus</button></div></div>`).join(''):'<p class="m">Belum ada gambar dipilih.</p>'}
 function galeri(){const e=$('gal');if(e)e.innerHTML=galeriHtml()}
+// Gambar kecil di bawah kotak isian yang memuat penanda [GAMBAR n]
+const thumbHtml=t=>[...new Set([...String(t||'').matchAll(/\[GAMBAR\s*(\d+)\]/gi)].map(m=>+m[1]))].filter(n=>IMG[n-1]).map(n=>`<figure><img src="${IMG[n-1].s}"><br>Gambar ${n}</figure>`).join('');
+function thumbs(id,t){const e=$('th-'+id);if(e)e.innerHTML=thumbHtml(t)}
 function hapusGbr(i){if(confirm('Hapus gambar ini? Nomor gambar setelahnya akan bergeser, jadi periksa lagi penanda [GAMBAR n] di teks.')){IMG.splice(i,1);saveImg();galeri()}}
 function stepHal(d){const e=$('hg');e.value=Math.max(1,(+e.value||1)+d);lihatHal()}
 async function lihatHal(){
@@ -194,7 +198,7 @@ function cariUlang(b){run(b,async()=>{
  galeri();alert(`${r.n} gambar ditemukan.`+(r.gagal?` ${r.gagal} kelompok halaman gagal diproses.`:''))
 })}
 function setv(p,val){const a=p.split('.');let o=D;for(let i=0;i<a.length-1;i++)o=o[a[i]];o[a.at(-1)]=val;save()}
-function fld(path,[k,l,ty],val){const id=path+'.'+k;return `<label>${esc(l)}</label>`+(ty=='t'?`<textarea oninput="setv('${id}',this.value)">${esc(val[k])}</textarea>`:`<input value="${esc(val[k])}" oninput="setv('${id}',this.value)">`)}
+function fld(path,[k,l,ty],val){const id=path+'.'+k;return `<label>${esc(l)}</label>`+(ty=='t'?`<textarea oninput="setv('${id}',this.value);thumbs('${id}',this.value)">${esc(val[k])}</textarea><div class="th" id="th-${id}">${thumbHtml(val[k])}</div>`:`<input value="${esc(val[k])}" oninput="setv('${id}',this.value)">`)}
 function render(){
  $('nav').innerHTML=ST.map((s,i)=>`<button class="${i==step?'on':''}" onclick="step=${i};render()">${i+1}. ${s.t}</button>`).join('');
  const s=ST[step];let h='';
@@ -203,7 +207,7 @@ function render(){
  else if(s.k=='bk'){h=bukuUI()}
  else if(s.k=='pg'){h=`<div class="card"><label>Jumlah pertemuan</label><select onchange="npert(+this.value)">${[1,2,3,4,5,6].map(n=>`<option ${n==D.p.length?'selected':''}>${n}</option>`).join('')}</select>
  <div class="row"><button class="g" onclick="genAll()">✨ Generate semua pertemuan</button></div><p class="m">Isi dulu Identitas, Murid, dan Desain agar hasil AI relevan.</p></div>`+D.p.map((p,i)=>`<div class="card"><div class="row"><b style="flex:1">Pertemuan Ke-${i+1}</b><button class="g" onclick="genP(${i},this)">✨ Generate</button></div>${PF.map(f=>fld('p.'+i,f,p)).join('')}</div>`).join('')}
- else{const g=F[s.k];h=`<div class="card">${g.ai?`<div class="row"><button class="g" onclick="genS('${s.k}',this)">✨ Generate dengan AI</button><span class="m">Isian yang sudah ada akan ditimpa; Anda tetap bisa mengedit.</span></div>`:''}${g.f.map(f=>fld('v',f,D.v)).join('')}</div>`}
+ else{const g=F[s.k];h=`<div class="card">${g.ai?`<div class="row"><button class="g" onclick="genS('${s.k}',this)">✨ Generate dengan AI</button>${s.k=='as'?`<button class="g" onclick="genLkpd(this)">🎨 Generate LKPD saja</button>`:''}<span class="m">Isian yang sudah ada akan ditimpa; Anda tetap bisa mengedit.</span></div>`:''}${g.f.map(f=>fld('v',f,D.v)).join('')}</div>`}
  $('main').innerHTML=h+(s.k!='ex'?`<div class="row np"><button class="s" onclick="step=Math.max(0,step-1);render()">← Kembali</button><button onclick="step=Math.min(ST.length-1,step+1);render()">Lanjut →</button></div>`:'');
 }
 function npert(n){while(D.p.length<n)D.p.push({});D.p.length=n;save();render()}
@@ -218,7 +222,20 @@ async function callAI(prompt,images){
  const m=j.text.match(/\{[\s\S]*\}/);return JSON.parse(m[0])}
 async function run(btn,fn){const o=btn.textContent;btn.textContent='⏳ Menghasilkan...';btn.classList.add('ld');try{await fn()}catch(e){alert(e.name=='TimeoutError'?'AI terlalu lama merespons (lebih dari 2,5 menit). Coba lagi sebentar lagi.':e.message)}btn.textContent=o;btn.classList.remove('ld')}
 const strip=s=>s.split(' (')[0].split(':')[0];
-function genS(k,b){run(b,async()=>{const r=await ai(F[k].f.map(f=>[f[0],f[1]]));for(const f of F[k].f)if(r[f[0]]!=null)D.v[f[0]]=typeof r[f[0]]=='string'?r[f[0]]:JSON.stringify(r[f[0]]);save();render()})}
+const LKPD_HINT=`\nKHUSUS LKPD: buat Lembar Kerja Peserta Didik yang MENARIK dan ramah anak SD dengan format persis berikut. Baris pertama "# JUDUL KREATIF". Lalu bagian-bagian yang diawali "## ", yaitu "## Petunjuk" (2-4 langkah singkat), "## Kegiatan 1: ..." sampai "## Kegiatan 3: ..." (tiap kegiatan berisi pengantar satu kalimat, gambar [GAMBAR n] pada baris tersendiri bila ada yang cocok, lalu tugas atau pertanyaan bernomor dengan tempat jawaban "........................" atau pilihan centang "☐"), dan "## Ayo Berefleksi" (pilihan emoji 😊 😐 😟 serta 1-2 kalimat refleksi). Beri 1-2 emoji yang sesuai pada judul tiap bagian. Pakai gambar sebanyak mungkin yang relevan (tiap gambar sekali) dan buat soal yang merujuk gambar itu, misalnya "Perhatikan Gambar 2. ...".\n`;
+function lkpdHtml(t){
+ t=String(t||'').trim();if(!t)return '';
+ const bl=[];let cur=null;
+ t.split('\n').forEach(l=>{
+  if(/^##\s+/.test(l)){cur={h:l.replace(/^##\s+/,''),b:[]};bl.push(cur)}
+  else if(/^#\s+/.test(l)){bl.push({title:l.replace(/^#\s+/,'')});cur=null}
+  else{if(!cur){cur={h:'Petunjuk',b:[]};bl.push(cur)}cur.b.push(l)}
+ });
+ return bl.map(b=>b.title!=null
+  ?`<table width="100%" style="width:100%;margin:8px 0"><tr><td bgcolor="#2563eb" style="background:#2563eb;color:#fff;text-align:center;padding:8px;font-size:18px;border:0"><b>${esc(b.title)}</b></td></tr></table>`
+  :`<table width="100%" style="width:100%;border:2px solid #2563eb;margin:10px 0"><tr><td bgcolor="#dbeafe" style="background:#dbeafe;color:#000;padding:6px;border:0"><b>${esc(b.h)}</b></td></tr><tr><td style="padding:8px;border:0">${nl(b.b.join('\n').trim())}</td></tr></table>`).join('')}
+function genLkpd(b){run(b,async()=>{const r=await ai([['lkpd','LKPD menarik dengan format yang dijelaskan di atas']],LKPD_HINT);D.v.lkpd=String(r.lkpd||'');save();render()})}
+function genS(k,b){run(b,async()=>{const r=await ai(F[k].f.map(f=>[f[0],f[1]]),k=='as'?LKPD_HINT:'');for(const f of F[k].f)if(r[f[0]]!=null)D.v[f[0]]=typeof r[f[0]]=='string'?r[f[0]]:JSON.stringify(r[f[0]]);save();render()})}
 function genP(i,b){return run(b,async()=>{const r=await ai(PF.map(f=>[f[0],f[1]]),`Ini pertemuan ke-${i+1} dari ${D.p.length} pertemuan. Pastikan alur antar pertemuan berkesinambungan.`);for(const f of PF)if(r[f[0]]!=null)D.p[i][f[0]]=String(r[f[0]]);save();render()})}
 async function genAll(){for(let i=0;i<D.p.length;i++){const b=document.querySelectorAll('.card .g')[i+1];await genP(i,b||document.createElement('b'))}}
 const tr=(a,b)=>`<tr><td width="30%"><b>${a}</b></td><td>${nl(b)}</td></tr>`;
@@ -231,7 +248,7 @@ function doc(){USED=new Set();const v=D.v;let h=`<div style="text-align:center">
  h+=`<h3>ASESMEN PEMBELAJARAN</h3><table>${tr('Asesmen Awal (Diagnostik)',v.diagnostik)+tr('Asesmen Formatif',v.formatif)+tr('Asesmen Sumatif',v.sumatif)}</table><h3>TINDAK LANJUT</h3><table>${tr('Remedial',v.remedial)+tr('Pengayaan',v.pengayaan)}</table><h3>PENUTUP</h3><p>${nl(v.penutup)}</p>
  <table style="border:0"><tr><td style="border:0">Mengetahui,<br>Kepala Sekolah<br><br><br><br><b><u>${esc(v.kepsek)}</u></b><br>NIP. ${esc(v.nipk)}</td><td style="border:0">${esc(v.tempat)}<br>Guru/Mata Pelajaran<br><br><br><br><b><u>${esc(v.guru)}</u></b><br>NIP. ${esc(v.nipg)}</td></tr></table>
  <h3>LAMPIRAN</h3><h4>A. Rubrik Asesmen</h4><table><tr><th>Aspek yang Dinilai</th><th>Sangat Baik (4)</th><th>Baik (3)</th><th>Cukup (2)</th><th>Perlu Bimbingan (1)</th></tr>${(v.rubrik||'').split('\n').filter(x=>x.includes('|')).map(r=>'<tr>'+r.split('|').map(c=>`<td>${esc(c.trim())}</td>`).join('')+'</tr>').join('')}</table>
- <h4>B. Lembar Kerja Murid (LKPD)</h4><p>Nama: ........................ Kelas: ........</p><p>${nl(v.lkpd)}</p><h4>C. Materi Ajar</h4><p>${nl(v.materi)}</p><h4>D. Glosarium</h4><p>${nl(v.glosarium)}</p><h4>E. Daftar Pustaka</h4><p>${nl(v.pustaka)}</p>`;
+ <h4>B. Lembar Kerja Murid (LKPD)</h4><p>Nama: ........................ Kelas: ........</p>${lkpdHtml(v.lkpd)}<h4>C. Materi Ajar</h4><p>${nl(v.materi)}</p><h4>D. Glosarium</h4><p>${nl(v.glosarium)}</p><h4>E. Daftar Pustaka</h4><p>${nl(v.pustaka)}</p>`;
  const sisa=IMG.map((g,i)=>[i+1,g]).filter(a=>!USED.has(a[0]));if(sisa.length)h+='<h4>F. Galeri Gambar</h4>'+sisa.map(a=>fig(a[0],a[1])).join('');
  return h}
 function dl(){
