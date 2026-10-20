@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="id"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Generator Modul Ajar Pembelajaran Mendalam</title>
+<style>
+:root{--bg:#f4f6fb;--c:#fff;--t:#1d2433;--m:#667085;--p:#2563eb;--b:#d9dfeb}
+@media(prefers-color-scheme:dark){:root{--bg:#10141c;--c:#1a2030;--t:#e8ecf5;--m:#9aa5b8;--p:#5b8cff;--b:#2c3548}}
+*{box-sizing:border-box}body{margin:0;font:15px/1.5 system-ui,sans-serif;background:var(--bg);color:var(--t)}
+header{background:var(--p);color:#fff;padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+header h1{font-size:16px;margin:0;flex:1 1 200px}
+button{font:inherit;border:0;border-radius:8px;padding:8px 12px;background:var(--p);color:#fff;cursor:pointer}
+header button{background:#ffffff30}button.g{background:#7c3aed}button.s{background:transparent;color:var(--p);border:1px solid var(--p)}
+nav{display:flex;gap:6px;overflow-x:auto;padding:10px 14px}nav button{white-space:nowrap;background:var(--c);color:var(--t);border:1px solid var(--b)}nav button.on{background:var(--p);color:#fff}
+main{max-width:860px;margin:0 auto;padding:0 14px 60px}
+.card{background:var(--c);border:1px solid var(--b);border-radius:12px;padding:14px;margin-bottom:14px}
+label{display:block;font-weight:600;margin:10px 0 4px;font-size:13px}
+input,textarea,select{width:100%;font:inherit;padding:8px;border:1px solid var(--b);border-radius:8px;background:var(--bg);color:var(--t)}
+textarea{min-height:90px;resize:vertical}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0}
+.m{color:var(--m);font-size:13px}dialog{border:1px solid var(--b);border-radius:12px;background:var(--c);color:var(--t);max-width:420px;width:92%}
+#prev{background:#fff;color:#000;padding:20px;border-radius:8px;overflow-x:auto}#prev table{border-collapse:collapse;width:100%;margin:8px 0}#prev td,#prev th{border:1px solid #000;padding:5px;vertical-align:top}
+.ld{opacity:.5;pointer-events:none}
+@media print{header,nav,.np{display:none!important}body{background:#fff}#prev{padding:0}}
+</style></head><body>
+<header><h1>📘 Generator Modul Ajar Pembelajaran Mendalam</h1>
+<button onclick="baru()">Baru</button><button onclick="simpan()">☁ Simpan</button><button onclick="buka()">📂 Buka</button><button id="bA" onclick="authD.showModal()">Masuk</button></header>
+<nav id="nav"></nav><main id="main"></main>
+<dialog id="authD"><h3>Masuk / Daftar</h3><label>Email</label><input id="em" type="email"><label>Password</label><input id="pw" type="password">
+<div class="row"><button onclick="auth('in')">Masuk</button><button class="s" onclick="auth('up')">Daftar</button><button class="s" onclick="authD.close()">Tutup</button></div><p class="m" id="am"></p></dialog>
+<dialog id="listD"><h3>Modul Tersimpan</h3><div id="lst"></div><button class="s" onclick="listD.close()">Tutup</button></dialog>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+// ====== ISI DUA NILAI INI (Supabase > Project Settings > API) ======
+const CFG={URL:'',KEY:''};
+// ===================================================================
+const sb=(CFG.URL&&window.supabase)?supabase.createClient(CFG.URL,CFG.KEY):null;
+const $=id=>document.getElementById(id);
+const esc=s=>String(s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const nl=s=>esc(s).replace(/\n/g,'<br>');
+let D=JSON.parse(localStorage.getItem('modul')||'null')||{id:null,v:{mapel:'PJOK',fase:'Fase A / Kelas I',jenjang:'SD',sekolah:'SD Negeri 1 Dauhwaru',tahun:'2026/2027'},p:[{}]};
+let step=0;
+const F={
+id:{t:'Identitas',f:[['penyusun','Penyusun'],['sekolah','Sekolah'],['tahun','Tahun Penyusunan'],['jenjang','Jenjang Sekolah'],['mapel','Mata Pelajaran'],['fase','Fase / Kelas / Semester'],['bab','Bab'],['subbab','Sub Bab'],['waktu','Alokasi Waktu']]},
+mr:{t:'Identifikasi Murid',ai:1,f:[['kesiapan','Kesiapan Murid: pengetahuan awal, pengalaman, kesiapan, kebutuhan belajar','t'],['karakteristik','Karakteristik Materi Pelajaran: ruang lingkup, tingkat kesulitan, konteks','t'],['dimensi','Dimensi Profil Lulusan (pilih dari: Keimanan dan Ketakwaan; Kewargaan; Penalaran Kritis; Kreativitas; Kolaborasi; Kemandirian; Kesehatan; Komunikasi) beserta alasannya','t']]},
+ds:{t:'Desain Pembelajaran',ai:1,f:[['cp','Capaian Pembelajaran (CP) sesuai fase dan mapel','t'],['lintas','Lintas Disiplin Ilmu','t'],['tujuan','Tujuan Pembelajaran (terukur, bernomor)','t'],['topik','Topik Pembelajaran (urutan submateri)','t'],['model','Praktik Pedagogis: Model'],['metode','Praktik Pedagogis: Metode'],['kemitraan','Kemitraan Pembelajaran','t'],['rfisik','Lingkungan: Ruang fisik'],['rvirtual','Lingkungan: Ruang virtual'],['budaya','Lingkungan: Budaya belajar'],['digital','Pemanfaatan Digital','t']]},
+as:{t:'Asesmen & Lampiran',ai:1,f:[['diagnostik','Asesmen Awal (Diagnostik): tujuan, waktu, teknik, instrumen, indikator, interpretasi hasil','t'],['formatif','Asesmen Formatif: teknik, instrumen, indikator, waktu, umpan balik','t'],['sumatif','Asesmen Sumatif: bentuk, cakupan, instrumen, kriteria, waktu','t'],['remedial','Tindak Lanjut: Remedial','t'],['pengayaan','Tindak Lanjut: Pengayaan','t'],['rubrik','Rubrik Asesmen (3 aspek, skala 4-1, dalam bentuk baris: Aspek | Sangat Baik | Baik | Cukup | Perlu Bimbingan, dipisah tanda |)','t'],['lkpd','LKPD (petunjuk kerja, kegiatan, refleksi murid)','t'],['materi','Materi Ajar (konsep, langkah, contoh, rangkuman)','t'],['glosarium','Glosarium (Istilah: definisi, satu per baris)','t'],['pustaka','Daftar Pustaka','t'],['penutup','Penutup modul','t']]},
+};
+const PF=[['model','Model Pembelajaran'],['metode','Metode'],['waktu','Alokasi Waktu'],['tujuan','Tujuan Pembelajaran','t'],['awal_w','Waktu Kegiatan Awal (menit)'],['awal','AWAL: bernomor 1-5 (pembukaan/doa/presensi; Berkesadaran; Bermakna; Menggembirakan; tujuan & apersepsi)','t'],['inti_w','Waktu Kegiatan Inti (menit)'],['memahami','INTI - MEMAHAMI','t'],['mengaplikasikan','INTI - MENGAPLIKASIKAN','t'],['merefleksi','INTI - MEREFLEKSI','t'],['tutup_w','Waktu Penutup (menit)'],['tutup','PENUTUP: bernomor (simpulan, refleksi/perasaan murid, tindak lanjut)','t']];
+const ST=[...Object.keys(F).map(k=>({k,t:F[k].t})).slice(0,3),{k:'pg',t:'Pengalaman Belajar'},{k:'as',t:F.as.t},{k:'ex',t:'Pratinjau & Ekspor'}];
+function save(){localStorage.setItem('modul',JSON.stringify(D))}
+function setv(p,val){const a=p.split('.');let o=D;for(let i=0;i<a.length-1;i++)o=o[a[i]];o[a.at(-1)]=val;save()}
+function fld(path,[k,l,ty],val){const id=path+'.'+k;return `<label>${esc(l)}</label>`+(ty=='t'?`<textarea oninput="setv('${id}',this.value)">${esc(val[k])}</textarea>`:`<input value="${esc(val[k])}" oninput="setv('${id}',this.value)">`)}
+function render(){
+ $('nav').innerHTML=ST.map((s,i)=>`<button class="${i==step?'on':''}" onclick="step=${i};render()">${i+1}. ${s.t}</button>`).join('');
+ const s=ST[step];let h='';
+ if(s.k=='ex'){h=`<div class="row np"><button onclick="dl()">⬇ Unduh Word (.doc)</button><button class="s" onclick="print()">🖨 Cetak / PDF</button></div>
+ <div class="card np"><b>Penandatangan</b>${[['kepsek','Nama Kepala Sekolah'],['nipk','NIP Kepala Sekolah'],['guru','Nama Guru'],['nipg','NIP Guru'],['tempat','Tempat, tanggal']].map(f=>fld('v',f,D.v)).join('')}</div><div id="prev">${doc()}</div>`}
+ else if(s.k=='pg'){h=`<div class="card"><label>Jumlah pertemuan</label><select onchange="npert(+this.value)">${[1,2,3,4,5,6].map(n=>`<option ${n==D.p.length?'selected':''}>${n}</option>`).join('')}</select>
+ <div class="row"><button class="g" onclick="genAll()">✨ Generate semua pertemuan</button></div><p class="m">Isi dulu Identitas, Murid, dan Desain agar hasil AI relevan.</p></div>`+D.p.map((p,i)=>`<div class="card"><div class="row"><b style="flex:1">Pertemuan Ke-${i+1}</b><button class="g" onclick="genP(${i},this)">✨ Generate</button></div>${PF.map(f=>fld('p.'+i,f,p)).join('')}</div>`).join('')}
+ else{const g=F[s.k];h=`<div class="card">${g.ai?`<div class="row"><button class="g" onclick="genS('${s.k}',this)">✨ Generate dengan AI</button><span class="m">Isian yang sudah ada akan ditimpa; Anda tetap bisa mengedit.</span></div>`:''}${g.f.map(f=>fld('v',f,D.v)).join('')}</div>`}
+ $('main').innerHTML=h+(s.k!='ex'?`<div class="row np"><button class="s" onclick="step=Math.max(0,step-1);render()">← Kembali</button><button onclick="step=Math.min(5,step+1);render()">Lanjut →</button></div>`:'');
+}
+function npert(n){while(D.p.length<n)D.p.push({});D.p.length=n;save();render()}
+async function token(){if(!sb)throw Error('Isi CFG.URL dan CFG.KEY di index.html terlebih dahulu.');const{data}=await sb.auth.getSession();if(!data.session){authD.showModal();throw Error('Silakan masuk dulu untuk memakai AI.')}return data.session.access_token}
+function ctx(){const v=D.v;return `Identitas modul: ${['sekolah','tahun','jenjang','mapel','fase','bab','subbab','waktu'].map(k=>k+'='+(v[k]||'-')).join('; ')}.\nKesiapan murid: ${v.kesiapan||'-'}\nKarakteristik materi: ${v.karakteristik||'-'}\nCP: ${v.cp||'-'}\nTujuan: ${v.tujuan||'-'}\nTopik: ${v.topik||'-'}\nModel: ${v.model||'-'}; Metode: ${v.metode||'-'}`}
+async function ai(fields,extra){
+ const prompt=`Anda ahli kurikulum Indonesia (Kurikulum Merdeka, Pembelajaran Mendalam: Berkesadaran, Bermakna, Menggembirakan; tahapan Memahami-Mengaplikasikan-Merefleksi). Susun isi modul ajar yang praktis, kontekstual untuk murid SD, berbahasa Indonesia baku.\n${ctx()}\n${extra||''}\nKembalikan HANYA objek JSON valid tanpa markdown, dengan kunci dan isi berikut (semua nilai string, gunakan \\n untuk baris baru):\n`+fields.map(f=>`"${f[0]}": ${f[1]}`).join('\n');
+ const r=await fetch(CFG.URL+'/functions/v1/generate-modul',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+await token(),apikey:CFG.KEY},body:JSON.stringify({prompt})});
+ const j=await r.json();if(j.error||!j.text)throw Error(j.error||'AI tidak merespons');
+ const m=j.text.match(/\{[\s\S]*\}/);return JSON.parse(m[0])}
+async function run(btn,fn){const o=btn.textContent;btn.textContent='⏳ Menghasilkan...';btn.classList.add('ld');try{await fn()}catch(e){alert(e.message)}btn.textContent=o;btn.classList.remove('ld')}
+const strip=s=>s.split(' (')[0].split(':')[0];
+function genS(k,b){run(b,async()=>{const r=await ai(F[k].f.map(f=>[f[0],f[1]]));for(const f of F[k].f)if(r[f[0]]!=null)D.v[f[0]]=typeof r[f[0]]=='string'?r[f[0]]:JSON.stringify(r[f[0]]);save();render()})}
+function genP(i,b){return run(b,async()=>{const r=await ai(PF.map(f=>[f[0],f[1]]),`Ini pertemuan ke-${i+1} dari ${D.p.length} pertemuan. Pastikan alur antar pertemuan berkesinambungan.`);for(const f of PF)if(r[f[0]]!=null)D.p[i][f[0]]=String(r[f[0]]);save();render()})}
+async function genAll(){for(let i=0;i<D.p.length;i++){const b=document.querySelectorAll('.card .g')[i+1];await genP(i,b||document.createElement('b'))}}
+const tr=(a,b)=>`<tr><td width="30%"><b>${a}</b></td><td>${nl(b)}</td></tr>`;
+function doc(){const v=D.v;let h=`<div style="text-align:center"><h2>MODUL AJAR<br>PEMBELAJARAN MENDALAM<br>${esc(v.mapel)}</h2><p>Disusun Oleh:<br><b>${esc(v.penyusun)}</b><br>${esc(v.fase)}<br><br><b>${esc(v.sekolah)}</b><br>TAHUN AJARAN ${esc(v.tahun)}</p></div><br>
+<h3>IDENTITAS</h3><table>${[['Penyusun','penyusun'],['Sekolah','sekolah'],['Tahun Penyusunan','tahun'],['Jenjang Sekolah','jenjang'],['Mata Pelajaran','mapel'],['Fase / Kelas / Semester','fase'],['Bab','bab'],['Sub Bab','subbab'],['Alokasi Waktu','waktu']].map(a=>tr(a[0],v[a[1]])).join('')}</table>
+<h3>IDENTIFIKASI MURID</h3><table>${tr('Kesiapan Murid',v.kesiapan)+tr('Karakteristik Materi Pelajaran',v.karakteristik)+tr('Dimensi Profil Lulusan',v.dimensi)}</table>
+<h3>DESAIN PEMBELAJARAN</h3><table>${tr('Capaian Pembelajaran (CP)',v.cp)+tr('Lintas Disiplin Ilmu',v.lintas)+tr('Tujuan Pembelajaran',v.tujuan)+tr('Topik Pembelajaran',v.topik)+tr('Praktik Pedagogis',`Model: ${v.model||''}\nPendekatan: Pembelajaran Mendalam (Berkesadaran, Bermakna, Menggembirakan)\nMetode: ${v.metode||''}`)+tr('Kemitraan Pembelajaran',v.kemitraan)+tr('Lingkungan Pembelajaran',`Ruang fisik: ${v.rfisik||''}\nRuang virtual: ${v.rvirtual||''}\nBudaya belajar: ${v.budaya||''}`)+tr('Pemanfaatan Digital',v.digital)}</table><h3>PENGALAMAN BELAJAR</h3>`;
+ D.p.forEach((p,i)=>{h+=`<h4>Pertemuan Ke-${i+1}</h4><table>${tr('Model Pembelajaran',p.model)+tr('Metode',p.metode)+tr('Alokasi Waktu',p.waktu)+tr('Tujuan Pembelajaran',p.tujuan)}</table><table><tr><th>Tahapan</th><th>Alokasi Waktu</th><th>Kegiatan Guru / Pengalaman Belajar Murid</th></tr>
+ <tr><td><b>AWAL</b></td><td>${esc(p.awal_w)} menit</td><td>${nl(p.awal)}</td></tr><tr><td><b>INTI</b></td><td>${esc(p.inti_w)} menit</td><td><b>MEMAHAMI</b><br>${nl(p.memahami)}<br><br><b>MENGAPLIKASIKAN</b><br>${nl(p.mengaplikasikan)}<br><br><b>MEREFLEKSI</b><br>${nl(p.merefleksi)}</td></tr><tr><td><b>PENUTUP</b></td><td>${esc(p.tutup_w)} menit</td><td>${nl(p.tutup)}</td></tr></table>`});
+ h+=`<h3>ASESMEN PEMBELAJARAN</h3><table>${tr('Asesmen Awal (Diagnostik)',v.diagnostik)+tr('Asesmen Formatif',v.formatif)+tr('Asesmen Sumatif',v.sumatif)}</table><h3>TINDAK LANJUT</h3><table>${tr('Remedial',v.remedial)+tr('Pengayaan',v.pengayaan)}</table><h3>PENUTUP</h3><p>${nl(v.penutup)}</p>
+ <table style="border:0"><tr><td style="border:0">Mengetahui,<br>Kepala Sekolah<br><br><br><br><b><u>${esc(v.kepsek)}</u></b><br>NIP. ${esc(v.nipk)}</td><td style="border:0">${esc(v.tempat)}<br>Guru/Mata Pelajaran<br><br><br><br><b><u>${esc(v.guru)}</u></b><br>NIP. ${esc(v.nipg)}</td></tr></table>
+ <h3>LAMPIRAN</h3><h4>A. Rubrik Asesmen</h4><table><tr><th>Aspek yang Dinilai</th><th>Sangat Baik (4)</th><th>Baik (3)</th><th>Cukup (2)</th><th>Perlu Bimbingan (1)</th></tr>${(v.rubrik||'').split('\n').filter(x=>x.includes('|')).map(r=>'<tr>'+r.split('|').map(c=>`<td>${esc(c.trim())}</td>`).join('')+'</tr>').join('')}</table>
+ <h4>B. Lembar Kerja Murid (LKPD)</h4><p>Nama: ........................ Kelas: ........</p><p>${nl(v.lkpd)}</p><h4>C. Materi Ajar</h4><p>${nl(v.materi)}</p><h4>D. Glosarium</h4><p>${nl(v.glosarium)}</p><h4>E. Daftar Pustaka</h4><p>${nl(v.pustaka)}</p>`;return h}
+function dl(){const b=new Blob(['<html><head><meta charset="utf-8"><style>table{border-collapse:collapse;width:100%}td,th{border:1px solid #000;padding:4px;vertical-align:top}</style></head><body>'+doc()+'</body></html>'],{type:'application/msword'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`Modul-Ajar-${D.v.mapel||'PJOK'}.doc`;a.click()}
+function baru(){if(confirm('Mulai modul baru? Data yang belum disimpan akan hilang.')){D={id:null,v:{mapel:'PJOK',fase:'Fase A / Kelas I',jenjang:'SD',sekolah:D.v.sekolah,tahun:D.v.tahun,penyusun:D.v.penyusun},p:[{}]};save();step=0;render()}}
+async function auth(m){try{if(!sb)throw Error('Supabase belum dikonfigurasi (CFG).');const c={email:$('em').value,password:$('pw').value};const{error}=m=='in'?await sb.auth.signInWithPassword(c):await sb.auth.signUp(c);if(error)throw error;$('am').textContent=m=='in'?'Berhasil masuk.':'Terdaftar. Cek email untuk konfirmasi, lalu masuk.';if(m=='in'){authD.close();$('bA').textContent='✔ Akun'}}catch(e){$('am').textContent=e.message}}
+async function simpan(){try{await token();const{data:{user}}=await sb.auth.getUser();const row={user_id:user.id,title:`${D.v.mapel||''} ${D.v.bab||''} ${D.v.subbab||''}`.trim()||'Modul tanpa judul',data:D};if(D.id)row.id=D.id;const{data,error}=await sb.from('modul').upsert(row).select().single();if(error)throw error;D.id=data.id;save();alert('Tersimpan di cloud ✔')}catch(e){alert(e.message)}}
+async function buka(){try{await token();const{data,error}=await sb.from('modul').select('id,title,updated_at').order('updated_at',{ascending:false});if(error)throw error;$('lst').innerHTML=data.length?data.map(r=>`<div class="row"><span style="flex:1">${esc(r.title)}<br><span class="m">${new Date(r.updated_at).toLocaleString('id-ID')}</span></span><button onclick="muat('${r.id}')">Buka</button><button class="s" onclick="hapus('${r.id}')">Hapus</button></div>`).join(''):'<p class="m">Belum ada modul.</p>';listD.showModal()}catch(e){alert(e.message)}}
+async function muat(id){const{data}=await sb.from('modul').select('data').eq('id',id).single();D=data.data;D.id=id;save();listD.close();step=0;render()}
+async function hapus(id){if(confirm('Hapus modul ini?')){await sb.from('modul').delete().eq('id',id);buka()}}
+if(sb)sb.auth.getSession().then(({data})=>{if(data.session)$('bA').textContent='✔ Akun'});
+render();
+</script></body></html>
