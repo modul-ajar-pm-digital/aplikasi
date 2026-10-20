@@ -22,15 +22,18 @@ textarea{min-height:90px;resize:vertical}.row{display:flex;gap:8px;flex-wrap:wra
 @media print{header,nav,.np{display:none!important}body{background:#fff}#prev{padding:0}}
 </style></head><body>
 <header><h1>📘 Generator Modul Ajar Pembelajaran Mendalam</h1>
-<button onclick="baru()">Baru</button><button onclick="simpan()">☁ Simpan</button><button onclick="buka()">📂 Buka</button><button id="bA" onclick="authD.showModal()">Masuk</button></header>
+<button onclick="baru()">Baru</button><button onclick="simpan()">☁ Simpan</button><button onclick="buka()">📂 Buka</button><button onclick="cfgD.showModal()">⚙</button><button id="bA" onclick="authD.showModal()">Masuk</button></header>
 <nav id="nav"></nav><main id="main"></main>
 <dialog id="authD"><h3>Masuk / Daftar</h3><label>Email</label><input id="em" type="email"><label>Password</label><input id="pw" type="password">
 <div class="row"><button onclick="auth('in')">Masuk</button><button class="s" onclick="auth('up')">Daftar</button><button class="s" onclick="authD.close()">Tutup</button></div><p class="m" id="am"></p></dialog>
+<dialog id="cfgD"><h3>⚙ Pengaturan Supabase</h3><p class="m">Isi sekali saja di browser ini. Supabase → Project Settings → API.</p><label>Project URL</label><input id="cu" placeholder="https://xxxx.supabase.co"><label>Anon public key</label><textarea id="ck" style="min-height:70px"></textarea>
+<div class="row"><button onclick="saveCfg()">Simpan</button><button class="s" onclick="cfgD.close()">Tutup</button></div></dialog>
 <dialog id="listD"><h3>Modul Tersimpan</h3><div id="lst"></div><button class="s" onclick="listD.close()">Tutup</button></dialog>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script>
-// ====== ISI DUA NILAI INI (Supabase > Project Settings > API) ======
-const CFG={URL:'',KEY:''};
+// Kunci Supabase diisi lewat tombol ⚙ Pengaturan di website (tidak perlu edit file ini).
+// Opsional: isi default di sini jika ingin tertanam permanen.
+const CFG=Object.assign({URL:'',KEY:''},JSON.parse(localStorage.getItem('cfg')||'{}'));
 // ===================================================================
 const sb=(CFG.URL&&window.supabase)?supabase.createClient(CFG.URL,CFG.KEY):null;
 const $=id=>document.getElementById(id);
@@ -91,5 +94,8 @@ async function buka(){try{await token();const{data,error}=await sb.from('modul')
 async function muat(id){const{data}=await sb.from('modul').select('data').eq('id',id).single();D=data.data;D.id=id;save();listD.close();step=0;render()}
 async function hapus(id){if(confirm('Hapus modul ini?')){await sb.from('modul').delete().eq('id',id);buka()}}
 if(sb)sb.auth.getSession().then(({data})=>{if(data.session)$('bA').textContent='✔ Akun'});
+function saveCfg(){const u=$('cu').value.trim().replace(/\/+$/,''),k=$('ck').value.trim();if(!/^https:\/\/.+\..+/.test(u)||k.length<20)return alert('URL atau key belum benar.');localStorage.setItem('cfg',JSON.stringify({URL:u,KEY:k}));location.reload()}
+$('cu').value=CFG.URL;$('ck').value=CFG.KEY;
 render();
+if(!CFG.URL)cfgD.showModal();
 </script></body></html>
