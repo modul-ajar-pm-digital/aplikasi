@@ -70,14 +70,18 @@ function bukuUI(){
  <label>File buku</label><input type="file" accept=".pdf,.txt" onchange="pilihBuku(this.files[0])">
  <div id="bkInfo" class="m">${info}</div>
  <div class="row"><div style="flex:1"><label>Dari halaman</label><input id="h1" type="number" min="1" value="${HA}" ${TXTBUF!=null?'disabled':''}></div><div style="flex:1"><label>Sampai halaman</label><input id="h2" type="number" min="1" value="${HZ}" ${TXTBUF!=null?'disabled':''}></div></div>
- <div class="row"><button class="g" onclick="ekstrak(this)">📥 Ekstrak teks</button></div></div>
+ <label style="display:flex;gap:8px;align-items:center;font-weight:400"><input type="checkbox" id="autoGbr" checked style="width:auto"> Sekalian cari gambar buku dengan AI (otomatis, perlu masuk akun)</label>
+ <div class="row"><button class="g" onclick="ekstrak(this)">📥 Ekstrak teks & gambar</button></div></div>
  <div class="card">${ada}</div>
  <div class="card"><b>🖼 Gambar dari Buku</b>
- <p class="m">Tampilkan halaman buku, seret untuk memilih bagian gambar (tanpa memilih = seluruh halaman), beri keterangan, lalu tambahkan. Saat Generate, AI menyisipkan gambar ke Materi Ajar, LKPD, atau kegiatan yang sesuai. Gambar yang tidak terpakai masuk ke "Galeri Gambar" di lampiran. Maksimal 15 gambar. Hanya untuk PDF.</p>
+ <p class="m">Gambar dicari otomatis oleh AI dari halaman yang Anda ekstrak, lengkap dengan keterangannya. Saat Generate, AI menyisipkan gambar ke Materi Ajar, LKPD, atau kegiatan yang sesuai. Gambar yang tidak terpakai masuk ke "Galeri Gambar" di lampiran. Anda bisa mengubah keterangan atau menghapus gambar yang kurang pas. Maksimal 15 gambar, hanya untuk PDF.</p>
+ <div class="row"><button class="g" onclick="cariUlang(this)">🔄 Cari ulang gambar dengan AI</button></div>
+ <details><summary class="m">Tambah gambar manual (opsional)</summary>
  <div class="row"><input id="hg" type="number" min="1" value="${HA}" style="width:110px"><button class="g" onclick="lihatHal()">Tampilkan halaman</button><button class="s" onclick="stepHal(-1)">◀</button><button class="s" onclick="stepHal(1)">▶</button></div>
  <div id="pvBox"></div>
  <label>Keterangan gambar</label><input id="kp" placeholder="mis. Anak melempar bola dengan dua tangan">
  <div class="row"><button onclick="tambahGbr()">➕ Tambahkan ke modul</button></div>
+ </details>
  <div id="gal">${galeriHtml()}</div></div>`}
 async function pilihBuku(f){
  if(!f)return;const info=$('bkInfo');
@@ -103,10 +107,16 @@ function ekstrak(b){run(b,async()=>{
    t+=`\n[Hal. ${i}]\n`+c.items.map(x=>x.str+(x.hasEOL?'\n':'')).join(' ').replace(/[ \t]+/g,' ');
    if(t.length>MAXREF){t=t.slice(0,MAXREF);z=i;break}
   }
-  hal=`hal. ${a}-${z}`;
+  hal=`hal. ${a}-${z}`;HZ=z;
   if(t.replace(/\[Hal\. \d+\]/g,'').trim().length<200)throw Error('Teks hampir kosong. PDF ini kemungkinan hasil scan (berupa gambar). Gunakan PDF yang teksnya bisa diblok/disalin.');
  }
- REF={nama:PDFNAMA,teks:t.trim(),hal,on:true};saveRef();render();
+ REF={nama:PDFNAMA,teks:t.trim(),hal,on:true};saveRef();
+ let pesan='';
+ if(PDFDOC&&$('autoGbr')&&$('autoGbr').checked){
+  try{const r=await cariGambarCore(HA,HZ,x=>{b.textContent=x});pesan=`Teks dan ${r.n} gambar berhasil disiapkan.`+(r.gagal?` (${r.gagal} kelompok halaman gagal diproses, bisa dicoba lagi lewat "Cari ulang gambar".)`:'')}
+  catch(e){pesan='Teks tersimpan, tetapi pencarian gambar gagal: '+e.message}
+ }
+ render();if(pesan)alert(pesan);
 })}
 function hapusRef(){if(confirm('Hapus buku referensi?')){REF={nama:'',teks:'',hal:'',on:true};saveRef();render()}}
 // ===== Gambar dari buku =====
@@ -115,7 +125,7 @@ let PV={n:0,sel:null},USED=new Set();
 function saveImg(){try{localStorage.setItem('img',JSON.stringify(IMG))}catch(e){alert('Memori browser penuh. Hapus beberapa gambar.')}}
 const fig=(n,g)=>{const dw=Math.min(g.w,420),dh=Math.round(g.h*dw/g.w);return `<span style="display:block;text-align:center;margin:6px 0"><img src="${g.s}" data-n="${n}" width="${dw}" height="${dh}"><br><i style="font-size:12px">Gambar ${n}. ${esc(g.c)} (Sumber: ${esc((REF.nama||'buku pelajaran').replace(/\.pdf$/i,''))}, hal. ${g.hal})</i></span>`};
 const gam=h=>h.replace(/\[GAMBAR\s*(\d+)\]/gi,(m,n)=>{const g=IMG[n-1];if(!g)return '';USED.add(+n);return fig(n,g)});
-function imgTxt(){return IMG.length?`\nGAMBAR TERSEDIA dari buku. Sisipkan penanda persis seperti tertulis, contoh [GAMBAR 2], pada baris tersendiri di dalam isian yang sesuai (misalnya Materi Ajar, LKPD, atau kegiatan pembelajaran), hanya bila relevan dengan isi isian itu dan jangan dipakai lebih dari sekali. Rujuk gambar di teks, misalnya "perhatikan Gambar 2":\n${IMG.map((g,i)=>`[GAMBAR ${i+1}] = hal. ${g.hal}; keterangan: ${g.c}`).join('\n')}\n`:''}
+function imgTxt(){return IMG.length?`\nGAMBAR TERSEDIA dari buku. Sisipkan penanda persis seperti tertulis, contoh [GAMBAR 2], pada baris tersendiri di dalam isian yang sesuai (misalnya Materi Ajar, LKPD, atau kegiatan pembelajaran), gunakan sebanyak mungkin gambar yang relevan dengan isi isian itu (jangan memakai gambar yang sama dua kali dalam satu isian). Rujuk gambar di teks, misalnya "perhatikan Gambar 2":\n${IMG.map((g,i)=>`[GAMBAR ${i+1}] = hal. ${g.hal}; keterangan: ${g.c}`).join('\n')}\n`:''}
 function galeriHtml(){return IMG.length?IMG.map((g,i)=>`<div class="row" style="align-items:flex-start"><img src="${g.s}" style="width:110px;border:1px solid var(--b);border-radius:6px"><div style="flex:1;min-width:180px"><b>[GAMBAR ${i+1}]</b> <span class="m">hal. ${g.hal}</span><input value="${esc(g.c).replace(/"/g,'&quot;')}" oninput="IMG[${i}].c=this.value;saveImg()"><button class="s" style="margin-top:6px" onclick="hapusGbr(${i})">Hapus</button></div></div>`).join(''):'<p class="m">Belum ada gambar dipilih.</p>'}
 function galeri(){const e=$('gal');if(e)e.innerHTML=galeriHtml()}
 function hapusGbr(i){if(confirm('Hapus gambar ini? Nomor gambar setelahnya akan bergeser, jadi periksa lagi penanda [GAMBAR n] di teks.')){IMG.splice(i,1);saveImg();galeri()}}
@@ -143,6 +153,46 @@ function tambahGbr(){
  const x=o.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,o.width,o.height);x.drawImage(c,sx,sy,sw,sh,0,0,o.width,o.height);
  IMG.push({s:o.toDataURL('image/jpeg',0.8),w:o.width,h:o.height,c:$('kp').value.trim()||'Ilustrasi dari buku',hal:PV.n});
  saveImg();$('kp').value='';PV.sel=null;$('pvS').style.display='none';galeri()}
+// Pencarian gambar otomatis: AI melihat halaman PDF, menandai kotak gambar + keterangan, lalu dipotong di browser
+async function cariGambarCore(a,z,prog){
+ z=Math.min(z,a+29);const pages=[];for(let i=a;i<=z;i++)pages.push(i);
+ const hasil=[];let gagal=0,batch=0,err='';
+ for(let s=0;s<pages.length;s+=5){
+  const grp=pages.slice(s,s+5),hi=[],imgs=[];batch++;
+  if(prog)prog(`⏳ Mencari gambar hal. ${grp[0]}-${grp[grp.length-1]}...`);
+  for(const n of grp){
+   const pg=await PDFDOC.getPage(n),v0=pg.getViewport({scale:1}),vp=pg.getViewport({scale:1100/v0.width});
+   const c=document.createElement('canvas');c.width=vp.width;c.height=vp.height;
+   await pg.render({canvasContext:c.getContext('2d'),viewport:vp,background:'#fff'}).promise;
+   const t=document.createElement('canvas');t.width=640;t.height=Math.round(640*c.height/c.width);
+   t.getContext('2d').drawImage(c,0,0,t.width,t.height);
+   hi.push({n,c});imgs.push({mime:'image/jpeg',data:t.toDataURL('image/jpeg',0.7).split(',')[1]});
+  }
+  const prompt=`Anda menerima ${grp.length} halaman buku pelajaran SD sebagai gambar, berurutan: ${grp.map((n,i)=>`gambar ke-${i+1} = hal. ${n}`).join('; ')}.\nTemukan ILUSTRASI, foto, diagram, atau gambar peraga yang bermakna untuk pembelajaran (misalnya contoh gerakan, tokoh, alat, peta, bagan). Abaikan dekorasi latar (awan, pita, ikon kecil), logo, nomor halaman, header/footer, dan halaman yang hanya berisi teks.\nUntuk tiap gambar beri kotak pembatas yang memuat SELURUH gambar (semua figur dalam satu adegan) tanpa paragraf teks di sekitarnya, dengan koordinat ternormalisasi 0-1000 berurutan [ymin,xmin,ymax,xmax]. Maksimal 3 gambar terbaik per halaman. "keterangan" berisi satu kalimat Bahasa Indonesia yang menjelaskan isi gambar secara konkret.\nKembalikan HANYA JSON: {"gambar":[{"hal":10,"box":[ymin,xmin,ymax,xmax],"keterangan":"..."}]}. Jika tidak ada gambar: {"gambar":[]}.`;
+  let r;try{r=await callAI(prompt,imgs)}catch(e){gagal++;err=e.message;continue}
+  for(const g of (r.gambar||[])){
+   const o=hi.find(h=>h.n==+g.hal);let [y1,x1,y2,x2]=(g.box||[]).map(Number);
+   if(!o||[y1,x1,y2,x2].some(isNaN))continue;
+   y1=Math.max(0,y1-12);x1=Math.max(0,x1-12);y2=Math.min(1000,y2+12);x2=Math.min(1000,x2+12);
+   const bw=x2-x1,bh=y2-y1;if(bw<80||bh<80||bw*bh>850000)continue;
+   const c=o.c,sx=x1/1000*c.width,sy=y1/1000*c.height,sw=bw/1000*c.width,sh=bh/1000*c.height,sc=Math.min(1,700/sw),cv=document.createElement('canvas');
+   cv.width=Math.round(sw*sc);cv.height=Math.round(sh*sc);
+   const x=cv.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,cv.width,cv.height);x.drawImage(c,sx,sy,sw,sh,0,0,cv.width,cv.height);
+   hasil.push({s:cv.toDataURL('image/jpeg',0.8),w:cv.width,h:cv.height,c:String(g.keterangan||'Ilustrasi dari buku').slice(0,160),hal:o.n,auto:true,area:bw*bh});
+  }
+ }
+ if(!hasil.length&&gagal==batch)throw Error(err);
+ const manual=IMG.filter(g=>!g.auto),sisa=Math.max(0,15-manual.length);
+ const pilih=hasil.sort((p,q)=>q.area-p.area).slice(0,sisa).sort((p,q)=>p.hal-q.hal);
+ IMG=manual.concat(pilih);saveImg();
+ return {n:pilih.length,gagal}}
+function cariUlang(b){run(b,async()=>{
+ if(!PDFDOC)throw Error('Buka file PDF buku dulu di bagian atas.');
+ const a=Math.max(1,+$('h1').value||1),z=Math.min(PDFDOC.numPages,+$('h2').value||a);
+ if(a>z)throw Error('Rentang halaman tidak valid.');
+ const r=await cariGambarCore(a,z,x=>{b.textContent=x});
+ galeri();alert(`${r.n} gambar ditemukan.`+(r.gagal?` ${r.gagal} kelompok halaman gagal diproses.`:''))
+})}
 function setv(p,val){const a=p.split('.');let o=D;for(let i=0;i<a.length-1;i++)o=o[a[i]];o[a.at(-1)]=val;save()}
 function fld(path,[k,l,ty],val){const id=path+'.'+k;return `<label>${esc(l)}</label>`+(ty=='t'?`<textarea oninput="setv('${id}',this.value)">${esc(val[k])}</textarea>`:`<input value="${esc(val[k])}" oninput="setv('${id}',this.value)">`)}
 function render(){
@@ -161,7 +211,9 @@ async function token(){if(!sb)throw Error('Isi CFG.URL dan CFG.KEY di index.html
 function ctx(){const v=D.v;return `Identitas modul: ${['sekolah','tahun','jenjang','mapel','fase','bab','subbab','waktu'].map(k=>k+'='+(v[k]||'-')).join('; ')}.\nKesiapan murid: ${v.kesiapan||'-'}\nKarakteristik materi: ${v.karakteristik||'-'}\nCP: ${v.cp||'-'}\nTujuan: ${v.tujuan||'-'}\nTopik: ${v.topik||'-'}\nModel: ${v.model||'-'}; Metode: ${v.metode||'-'}`}
 async function ai(fields,extra){
  const prompt=`Anda ahli kurikulum Indonesia (Kurikulum Merdeka, Pembelajaran Mendalam: Berkesadaran, Bermakna, Menggembirakan; tahapan Memahami-Mengaplikasikan-Merefleksi). Susun isi modul ajar yang praktis, kontekstual untuk murid SD, berbahasa Indonesia baku.\n${ctx()}\n${refTxt()}${imgTxt()}${extra||''}\nKembalikan HANYA objek JSON valid tanpa markdown, dengan kunci dan isi berikut (semua nilai string, gunakan \\n untuk baris baru):\n`+fields.map(f=>`"${f[0]}": ${f[1]}`).join('\n');
- const r=await fetch(CFG.URL+'/functions/v1/generate-modul',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+await token(),apikey:CFG.KEY},body:JSON.stringify({prompt}),signal:AbortSignal.timeout(150000)});
+ return callAI(prompt)}
+async function callAI(prompt,images){
+ const r=await fetch(CFG.URL+'/functions/v1/generate-modul',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+await token(),apikey:CFG.KEY},body:JSON.stringify(images?{prompt,images}:{prompt}),signal:AbortSignal.timeout(150000)});
  const j=await r.json();if(j.error||!j.text)throw Error(j.error||'AI tidak merespons');
  const m=j.text.match(/\{[\s\S]*\}/);return JSON.parse(m[0])}
 async function run(btn,fn){const o=btn.textContent;btn.textContent='⏳ Menghasilkan...';btn.classList.add('ld');try{await fn()}catch(e){alert(e.name=='TimeoutError'?'AI terlalu lama merespons (lebih dari 2,5 menit). Coba lagi sebentar lagi.':e.message)}btn.textContent=o;btn.classList.remove('ld')}
