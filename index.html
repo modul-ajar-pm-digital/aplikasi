@@ -30,6 +30,7 @@ textarea{min-height:90px;resize:vertical}.row{display:flex;gap:8px;flex-wrap:wra
 <div class="row"><button onclick="saveCfg()">Simpan</button><button class="s" onclick="cfgD.close()">Tutup</button></div></dialog>
 <dialog id="listD"><h3>Modul Tersimpan</h3><div id="lst"></div><button class="s" onclick="listD.close()">Tutup</button></dialog>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 // Kunci Supabase diisi lewat tombol ⚙ Pengaturan di website (tidak perlu edit file ini).
 // Opsional: isi default di sini jika ingin tertanam permanen.
@@ -48,8 +49,59 @@ ds:{t:'Desain Pembelajaran',ai:1,f:[['cp','Capaian Pembelajaran (CP) sesuai fase
 as:{t:'Asesmen & Lampiran',ai:1,f:[['diagnostik','Asesmen Awal (Diagnostik): tujuan, waktu, teknik, instrumen, indikator, interpretasi hasil','t'],['formatif','Asesmen Formatif: teknik, instrumen, indikator, waktu, umpan balik','t'],['sumatif','Asesmen Sumatif: bentuk, cakupan, instrumen, kriteria, waktu','t'],['remedial','Tindak Lanjut: Remedial','t'],['pengayaan','Tindak Lanjut: Pengayaan','t'],['rubrik','Rubrik Asesmen (3 aspek, skala 4-1, dalam bentuk baris: Aspek | Sangat Baik | Baik | Cukup | Perlu Bimbingan, dipisah tanda |)','t'],['lkpd','LKPD (petunjuk kerja, kegiatan, refleksi murid)','t'],['materi','Materi Ajar (konsep, langkah, contoh, rangkuman)','t'],['glosarium','Glosarium (Istilah: definisi, satu per baris)','t'],['pustaka','Daftar Pustaka','t'],['penutup','Penutup modul','t']]},
 };
 const PF=[['model','Model Pembelajaran'],['metode','Metode'],['waktu','Alokasi Waktu'],['tujuan','Tujuan Pembelajaran','t'],['awal_w','Waktu Kegiatan Awal (menit)'],['awal','AWAL: bernomor 1-5 (pembukaan/doa/presensi; Berkesadaran; Bermakna; Menggembirakan; tujuan & apersepsi)','t'],['inti_w','Waktu Kegiatan Inti (menit)'],['memahami','INTI - MEMAHAMI','t'],['mengaplikasikan','INTI - MENGAPLIKASIKAN','t'],['merefleksi','INTI - MEREFLEKSI','t'],['tutup_w','Waktu Penutup (menit)'],['tutup','PENUTUP: bernomor (simpulan, refleksi/perasaan murid, tindak lanjut)','t']];
-const ST=[...Object.keys(F).map(k=>({k,t:F[k].t})).slice(0,3),{k:'pg',t:'Pengalaman Belajar'},{k:'as',t:F.as.t},{k:'ex',t:'Pratinjau & Ekspor'}];
+const ST=[...Object.keys(F).map(k=>({k,t:F[k].t})).slice(0,1),{k:'bk',t:'Buku Referensi'},...Object.keys(F).map(k=>({k,t:F[k].t})).slice(1,3),{k:'pg',t:'Pengalaman Belajar'},{k:'as',t:F.as.t},{k:'ex',t:'Pratinjau & Ekspor'}];
 function save(){localStorage.setItem('modul',JSON.stringify(D))}
+// ===== Buku referensi (PDF/TXT) =====
+if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+let REF={nama:'',teks:'',hal:'',on:true};
+try{REF=Object.assign(REF,JSON.parse(localStorage.getItem('ref')||'{}'))}catch(e){}
+let PDFDOC=null,PDFNAMA='',TXTBUF=null,HA=1,HZ=30;
+const MAXREF=120000;
+function saveRef(){try{localStorage.setItem('ref',JSON.stringify(REF))}catch(e){alert('Memori browser penuh. Kurangi rentang halaman.')}}
+function refTxt(){return REF.on&&REF.teks?`\nBUKU PELAJARAN REFERENSI (${REF.nama}, ${REF.hal}). Jadikan sumber utama untuk materi, istilah, contoh, dan urutan pembahasan. Jangan membuat isi yang bertentangan dengan buku. Untuk Materi Ajar dan Daftar Pustaka, rujuk buku ini.\n<<<BUKU\n${REF.teks}\nBUKU>>>\n`:''}
+function bukuUI(){
+ const info=PDFDOC?`PDF terbuka: ${esc(PDFNAMA)} (${PDFDOC.numPages} halaman)`:(TXTBUF!=null?`TXT terbuka: ${esc(PDFNAMA)}`:'');
+ const ada=REF.teks?`<p>✔ <b>${esc(REF.nama)}</b> (${esc(REF.hal)}), ${REF.teks.length.toLocaleString('id-ID')} karakter tersimpan di browser ini.</p>
+ <label style="display:flex;gap:8px;align-items:center;font-weight:400"><input type="checkbox" style="width:auto" ${REF.on?'checked':''} onchange="REF.on=this.checked;saveRef()"> Pakai buku ini sebagai referensi AI</label>
+ <details><summary class="m">Lihat cuplikan teks</summary><pre style="white-space:pre-wrap;font-size:12px;max-height:200px;overflow:auto">${esc(REF.teks.slice(0,1500))}</pre></details>
+ <div class="row"><button class="s" onclick="hapusRef()">🗑 Hapus referensi</button></div>`:'<p class="m">Belum ada buku referensi tersimpan.</p>';
+ return `<div class="card"><b>📚 Buku Pelajaran sebagai Referensi AI</b>
+ <p class="m">Unggah buku (PDF atau TXT), pilih halaman bab yang akan diajarkan, lalu ekstrak. Teks itu dikirim ke AI sebagai sumber saat Generate. Batas sekitar ${MAXREF.toLocaleString('id-ID')} karakter (±40 halaman), jadi pilih halaman yang relevan saja. File PDF tidak diunggah ke server, hanya teks terpilih yang dikirim saat Generate.</p>
+ <label>File buku</label><input type="file" accept=".pdf,.txt" onchange="pilihBuku(this.files[0])">
+ <div id="bkInfo" class="m">${info}</div>
+ <div class="row"><div style="flex:1"><label>Dari halaman</label><input id="h1" type="number" min="1" value="${HA}" ${TXTBUF!=null?'disabled':''}></div><div style="flex:1"><label>Sampai halaman</label><input id="h2" type="number" min="1" value="${HZ}" ${TXTBUF!=null?'disabled':''}></div></div>
+ <div class="row"><button class="g" onclick="ekstrak(this)">📥 Ekstrak teks</button></div></div>
+ <div class="card">${ada}</div>`}
+async function pilihBuku(f){
+ if(!f)return;const info=$('bkInfo');
+ try{
+  if(/\.txt$/i.test(f.name)){PDFDOC=null;PDFNAMA=f.name;TXTBUF=await f.text();info.textContent=`TXT: ${f.name} (${TXTBUF.length.toLocaleString('id-ID')} karakter)`;$('h1').disabled=true;$('h2').disabled=true;return}
+  if(!window.pdfjsLib)throw Error('Pustaka PDF belum termuat. Periksa koneksi internet lalu muat ulang halaman.');
+  info.textContent='Membuka PDF...';
+  PDFDOC=await pdfjsLib.getDocument({data:await f.arrayBuffer()}).promise;PDFNAMA=f.name;TXTBUF=null;
+  HA=1;HZ=Math.min(PDFDOC.numPages,30);
+  info.textContent=`${f.name}: ${PDFDOC.numPages} halaman. Pilih rentang halaman bab yang dipakai.`;
+  $('h1').disabled=false;$('h2').disabled=false;$('h1').value=HA;$('h2').value=HZ;
+ }catch(e){info.textContent='';alert('Gagal membuka file: '+e.message)}}
+function ekstrak(b){run(b,async()=>{
+ let t='',hal='';
+ if(TXTBUF!=null){t=TXTBUF.slice(0,MAXREF);hal='teks lengkap'}
+ else{
+  if(!PDFDOC)throw Error('Pilih file buku dulu.');
+  const a=Math.max(1,+$('h1').value||1);let z=Math.min(PDFDOC.numPages,+$('h2').value||a);
+  if(a>z)throw Error('Rentang halaman tidak valid.');
+  HA=a;HZ=z;
+  for(let i=a;i<=z;i++){
+   const pg=await PDFDOC.getPage(i),c=await pg.getTextContent();
+   t+=`\n[Hal. ${i}]\n`+c.items.map(x=>x.str+(x.hasEOL?'\n':'')).join(' ').replace(/[ \t]+/g,' ');
+   if(t.length>MAXREF){t=t.slice(0,MAXREF);z=i;break}
+  }
+  hal=`hal. ${a}-${z}`;
+  if(t.replace(/\[Hal\. \d+\]/g,'').trim().length<200)throw Error('Teks hampir kosong. PDF ini kemungkinan hasil scan (berupa gambar). Gunakan PDF yang teksnya bisa diblok/disalin.');
+ }
+ REF={nama:PDFNAMA,teks:t.trim(),hal,on:true};saveRef();render();
+})}
+function hapusRef(){if(confirm('Hapus buku referensi?')){REF={nama:'',teks:'',hal:'',on:true};saveRef();render()}}
 function setv(p,val){const a=p.split('.');let o=D;for(let i=0;i<a.length-1;i++)o=o[a[i]];o[a.at(-1)]=val;save()}
 function fld(path,[k,l,ty],val){const id=path+'.'+k;return `<label>${esc(l)}</label>`+(ty=='t'?`<textarea oninput="setv('${id}',this.value)">${esc(val[k])}</textarea>`:`<input value="${esc(val[k])}" oninput="setv('${id}',this.value)">`)}
 function render(){
@@ -57,20 +109,21 @@ function render(){
  const s=ST[step];let h='';
  if(s.k=='ex'){h=`<div class="row np"><button onclick="dl()">⬇ Unduh Word (.doc)</button><button class="s" onclick="print()">🖨 Cetak / PDF</button></div>
  <div class="card np"><b>Penandatangan</b>${[['kepsek','Nama Kepala Sekolah'],['nipk','NIP Kepala Sekolah'],['guru','Nama Guru'],['nipg','NIP Guru'],['tempat','Tempat, tanggal']].map(f=>fld('v',f,D.v)).join('')}</div><div id="prev">${doc()}</div>`}
+ else if(s.k=='bk'){h=bukuUI()}
  else if(s.k=='pg'){h=`<div class="card"><label>Jumlah pertemuan</label><select onchange="npert(+this.value)">${[1,2,3,4,5,6].map(n=>`<option ${n==D.p.length?'selected':''}>${n}</option>`).join('')}</select>
  <div class="row"><button class="g" onclick="genAll()">✨ Generate semua pertemuan</button></div><p class="m">Isi dulu Identitas, Murid, dan Desain agar hasil AI relevan.</p></div>`+D.p.map((p,i)=>`<div class="card"><div class="row"><b style="flex:1">Pertemuan Ke-${i+1}</b><button class="g" onclick="genP(${i},this)">✨ Generate</button></div>${PF.map(f=>fld('p.'+i,f,p)).join('')}</div>`).join('')}
  else{const g=F[s.k];h=`<div class="card">${g.ai?`<div class="row"><button class="g" onclick="genS('${s.k}',this)">✨ Generate dengan AI</button><span class="m">Isian yang sudah ada akan ditimpa; Anda tetap bisa mengedit.</span></div>`:''}${g.f.map(f=>fld('v',f,D.v)).join('')}</div>`}
- $('main').innerHTML=h+(s.k!='ex'?`<div class="row np"><button class="s" onclick="step=Math.max(0,step-1);render()">← Kembali</button><button onclick="step=Math.min(5,step+1);render()">Lanjut →</button></div>`:'');
+ $('main').innerHTML=h+(s.k!='ex'?`<div class="row np"><button class="s" onclick="step=Math.max(0,step-1);render()">← Kembali</button><button onclick="step=Math.min(ST.length-1,step+1);render()">Lanjut →</button></div>`:'');
 }
 function npert(n){while(D.p.length<n)D.p.push({});D.p.length=n;save();render()}
 async function token(){if(!sb)throw Error('Isi CFG.URL dan CFG.KEY di index.html terlebih dahulu.');const{data}=await sb.auth.getSession();if(!data.session){authD.showModal();throw Error('Silakan masuk dulu untuk memakai AI.')}return data.session.access_token}
 function ctx(){const v=D.v;return `Identitas modul: ${['sekolah','tahun','jenjang','mapel','fase','bab','subbab','waktu'].map(k=>k+'='+(v[k]||'-')).join('; ')}.\nKesiapan murid: ${v.kesiapan||'-'}\nKarakteristik materi: ${v.karakteristik||'-'}\nCP: ${v.cp||'-'}\nTujuan: ${v.tujuan||'-'}\nTopik: ${v.topik||'-'}\nModel: ${v.model||'-'}; Metode: ${v.metode||'-'}`}
 async function ai(fields,extra){
- const prompt=`Anda ahli kurikulum Indonesia (Kurikulum Merdeka, Pembelajaran Mendalam: Berkesadaran, Bermakna, Menggembirakan; tahapan Memahami-Mengaplikasikan-Merefleksi). Susun isi modul ajar yang praktis, kontekstual untuk murid SD, berbahasa Indonesia baku.\n${ctx()}\n${extra||''}\nKembalikan HANYA objek JSON valid tanpa markdown, dengan kunci dan isi berikut (semua nilai string, gunakan \\n untuk baris baru):\n`+fields.map(f=>`"${f[0]}": ${f[1]}`).join('\n');
- const r=await fetch(CFG.URL+'/functions/v1/generate-modul',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+await token(),apikey:CFG.KEY},body:JSON.stringify({prompt})});
+ const prompt=`Anda ahli kurikulum Indonesia (Kurikulum Merdeka, Pembelajaran Mendalam: Berkesadaran, Bermakna, Menggembirakan; tahapan Memahami-Mengaplikasikan-Merefleksi). Susun isi modul ajar yang praktis, kontekstual untuk murid SD, berbahasa Indonesia baku.\n${ctx()}\n${refTxt()}${extra||''}\nKembalikan HANYA objek JSON valid tanpa markdown, dengan kunci dan isi berikut (semua nilai string, gunakan \\n untuk baris baru):\n`+fields.map(f=>`"${f[0]}": ${f[1]}`).join('\n');
+ const r=await fetch(CFG.URL+'/functions/v1/generate-modul',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+await token(),apikey:CFG.KEY},body:JSON.stringify({prompt}),signal:AbortSignal.timeout(150000)});
  const j=await r.json();if(j.error||!j.text)throw Error(j.error||'AI tidak merespons');
  const m=j.text.match(/\{[\s\S]*\}/);return JSON.parse(m[0])}
-async function run(btn,fn){const o=btn.textContent;btn.textContent='⏳ Menghasilkan...';btn.classList.add('ld');try{await fn()}catch(e){alert(e.message)}btn.textContent=o;btn.classList.remove('ld')}
+async function run(btn,fn){const o=btn.textContent;btn.textContent='⏳ Menghasilkan...';btn.classList.add('ld');try{await fn()}catch(e){alert(e.name=='TimeoutError'?'AI terlalu lama merespons (lebih dari 2,5 menit). Coba lagi sebentar lagi.':e.message)}btn.textContent=o;btn.classList.remove('ld')}
 const strip=s=>s.split(' (')[0].split(':')[0];
 function genS(k,b){run(b,async()=>{const r=await ai(F[k].f.map(f=>[f[0],f[1]]));for(const f of F[k].f)if(r[f[0]]!=null)D.v[f[0]]=typeof r[f[0]]=='string'?r[f[0]]:JSON.stringify(r[f[0]]);save();render()})}
 function genP(i,b){return run(b,async()=>{const r=await ai(PF.map(f=>[f[0],f[1]]),`Ini pertemuan ke-${i+1} dari ${D.p.length} pertemuan. Pastikan alur antar pertemuan berkesinambungan.`);for(const f of PF)if(r[f[0]]!=null)D.p[i][f[0]]=String(r[f[0]]);save();render()})}
